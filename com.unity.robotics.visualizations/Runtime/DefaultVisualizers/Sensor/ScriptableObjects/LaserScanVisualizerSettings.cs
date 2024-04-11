@@ -1,5 +1,6 @@
 using RosMessageTypes.Sensor;
 using System;
+using System.Linq;
 using Unity.Robotics.Visualizations;
 using Unity.Robotics.ROSTCPConnector.ROSGeometry;
 using UnityEngine;
@@ -32,7 +33,13 @@ public class LaserScanVisualizerSettings : VisualizerSettingsGeneric<LaserScanMs
     {
         drawing.SetTFTrackingSettings(m_TFTrackingSettings, message.header);
 
-        PointCloudDrawing pointCloud = drawing.AddPointCloud(message.ranges.Length);
+        // Trick to eliminate "inf" points causing mesh errors
+        var numQuery =
+            from num in message.ranges
+            where num == float.MaxValue
+            select num;
+
+        PointCloudDrawing pointCloud = drawing.AddPointCloud(message.ranges.Length - numQuery.Count());
         // negate the angle because ROS coordinates are right-handed, unity coordinates are left-handed
         float angle = -message.angle_min;
         ColorModeType mode = m_ColorMode;
@@ -40,6 +47,8 @@ public class LaserScanVisualizerSettings : VisualizerSettingsGeneric<LaserScanMs
             mode = ColorModeType.Distance;
         for (int i = 0; i < message.ranges.Length; i++)
         {
+            if (message.ranges[i] == float.MaxValue)
+                continue;
             Vector3 point = Quaternion.Euler(0, Mathf.Rad2Deg * angle, 0) * Vector3.forward * message.ranges[i];
 
             Color32 c = Color.white;
